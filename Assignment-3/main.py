@@ -224,40 +224,27 @@ def classify_test_samples(tree, data):
 # Test the classifier
 test_predictions = classify_test_samples(decision_tree, x_test_filtered_vector_recon)
 unique_values = np.unique(test_predictions)
+print()
+print()
 print("Unique values in test predictions:", unique_values)
-# # Calculate accuracy and class-wise accuracy for the testing dataset
-# accuracy = np.mean(test_predictions == y_test_filtered)
-# class_wise_accuracy = {c: np.mean(test_predictions[y_test_filtered == c] == c) for c in np.unique(y_test_filtered)}
+# Calculate class-wise accuracy
+class_accuracy = {}
+for class_label in np.unique(y_test_filtered):
+    mask = y_test_filtered == class_label
+    correct_classifications = np.sum(y_test_filtered[mask] == test_predictions[mask])
+    total_samples_class = np.sum(mask)
+    class_accuracy[class_label] = correct_classifications / total_samples_class
 
-# print("Decision Tree Accuracy:", accuracy)
-# print("Decision Tree Class-wise Accuracy:", class_wise_accuracy)
+# Calculate overall accuracy
+total_correct = np.sum(y_test_filtered == test_predictions)
+total_samples = len(y_test_filtered)
+overall_accuracy = total_correct / total_samples
 
-# # Now use bagging
-# def bagging(x_train, y_train, n_datasets=5):
-#     trees = []
-#     for i in range(n_datasets):
-#         indices = np.random.choice(len(x_train), len(x_train), replace=True)
-#         x_subset = x_train[indices]
-#         y_subset = y_train[indices]
-#         tree = grow_decision_tree(x_subset, y_subset)
-#         trees.append(tree)
-#     return trees
+# Print class-wise accuracy
+print("Class-wise accuracy:")
+for class_label, accuracy in class_accuracy.items():
+    print(f"Class {class_label}: {accuracy:.2%}")
 
-# # Grow decision trees using bagging
-# trees = bagging(x_train_filtered_vector_recon, y_train_filtered)
+# Print overall accuracy
+print(f"\nOverall accuracy: {overall_accuracy:.2%}")
 
-# # Function to predict class labels using majority voting
-# def majority_voting(trees, data):
-#     predictions = np.array([np.array([classify_test_samples(tree, sample) for sample in data]) for tree in trees])
-#     majority_predictions = np.array([np.bincount(predictions[:, :, i]).argmax() for i in range(len(data))])
-#     return majority_predictions
-
-# # Classify test samples using bagging
-# bagging_predictions = majority_voting(trees, x_test_filtered_vector_recon)
-
-# # Calculate total accuracy and class-wise accuracy for bagging
-# bagging_accuracy = np.mean(bagging_predictions == y_test_filtered)
-# bagging_class_wise_accuracy = {c: np.mean(bagging_predictions[y_test_filtered == c] == c) for c in np.unique(y_test_filtered)}
-
-# print("Bagging Accuracy:", bagging_accuracy)
-# print("Bagging Class-wise Accuracy:", bagging_class_wise_accuracy)
