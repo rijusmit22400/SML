@@ -228,7 +228,7 @@ print("Unique values in test predictions:", unique_values)
 # # Calculate accuracy and class-wise accuracy for the testing dataset
 # accuracy = np.mean(test_predictions == y_test_filtered)
 # class_wise_accuracy = {c: np.mean(test_predictions[y_test_filtered == c] == c) for c in np.unique(y_test_filtered)}
-y_
+
 # print("Decision Tree Accuracy:", accuracy)
 # print("Decision Tree Class-wise Accuracy:", class_wise_accuracy)
 
