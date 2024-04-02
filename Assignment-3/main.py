@@ -226,25 +226,126 @@ test_predictions = classify_test_samples(decision_tree, x_test_filtered_vector_r
 unique_values = np.unique(test_predictions)
 print()
 print()
+
 print("Unique values in test predictions:", unique_values)
 # Calculate class-wise accuracy
-class_accuracy = {}
-for class_label in np.unique(y_test_filtered):
-    mask = y_test_filtered == class_label
-    correct_classifications = np.sum(y_test_filtered[mask] == test_predictions[mask])
-    total_samples_class = np.sum(mask)
-    class_accuracy[class_label] = correct_classifications / total_samples_class
+def calculate_accuracy(y_true, y_pred):
+    """
+    floatCalculate class-wise accuracy and overall accuracy.
 
-# Calculate overall accuracy
-total_correct = np.sum(y_test_filtered == test_predictions)
-total_samples = len(y_test_filtered)
-overall_accuracy = total_correct / total_samples
+    Parameters:
+        y_true (numpy.ndarray): True class labels.
+        y_pred (numpy.ndarray): Predicted class labels.
 
-# Print class-wise accuracy
-print("Class-wise accuracy:")
-for class_label, accuracy in class_accuracy.items():
-    print(f"Class {class_label}: {accuracy:.2%}")
+    Returns:
+        numpy.ndarray: Class-wise accuracy.
+        : Overall accuracy.
+    """
+    unique_classes = np.unique(y_true)
+    class_accuracy = {}
 
-# Print overall accuracy
-print(f"\nOverall accuracy: {overall_accuracy:.2%}")
+    for class_label in unique_classes:
+        mask = y_true == class_label
+        correct_classifications = np.sum(y_true[mask] == y_pred[mask])
+        total_samples_class = np.sum(mask)
+        class_accuracy[class_label] = correct_classifications / total_samples_class
 
+    # Calculate overall accuracy
+    total_correct = np.sum(y_true == y_pred)
+    total_samples = len(y_true)
+    overall_accuracy = total_correct / total_samples
+
+    # Convert class-wise accuracy to numpy array
+    class_accuracy_array = np.array([class_accuracy[class_label] for class_label in unique_classes])
+
+    return class_accuracy_array, overall_accuracy
+
+class_accuracy, overall_accuracy = calculate_accuracy(y_test_filtered, test_predictions)
+print("Class-wise accuracy in %:", class_accuracy*100)
+print(f"Overall accuracy: {overall_accuracy*100}%")
+
+def generate_bootstrap_samples(train_set, train_label):
+    """
+    Generate an array of bootstrap samples.
+
+    Parameters:
+        train_set (numpy.ndarray): Array containing the training set.
+        train_label (numpy.ndarray): Array containing the training labels.
+
+    Returns:
+        numpy.ndarray: Array of bootstrap samples.
+    """
+    num_samples = len(train_set)
+    bootstrap_samples = []
+    bootstrap_labels_set = []
+    for _ in range(5):
+        # Generate a random permutation of indices with replacement
+        bootstrap_indices = np.random.choice(num_samples, num_samples, replace=True)
+
+        # Select rows from the training set and labels based on the bootstrap indices
+        bootstrap_set = train_set[bootstrap_indices]
+        bootstrap_labels = train_label[bootstrap_indices]
+
+        # Append the bootstrap samples to the list
+        bootstrap_samples.append(bootstrap_set)
+        bootstrap_labels_set.append(bootstrap_labels)
+    return np.array(bootstrap_samples),np.array(bootstrap_labels_set)
+
+
+# Test the function
+bootstrap_samples,bootstrap_labels = generate_bootstrap_samples(x_train_filtered_vector_recon, y_train_filtered)
+
+def majority_voting(predictions):
+    """
+    Perform majority voting to determine the final class prediction.
+
+    Parameters:
+        predictions (numpy.ndarray): Array containing class predictions from multiple decision trees.
+
+    Returns:
+        numpy.ndarray: Final class predictions based on majority voting.
+    """
+    final_predictions = []
+    for sample_preds in predictions.T:
+        unique, counts = np.unique(sample_preds, return_counts=True)
+        max_count_index = np.argmax(counts)
+        final_predictions.append(unique[max_count_index])
+    return np.array(final_predictions)
+
+
+def evaluate_bagged_decision_trees(bootstrap_samples, bootstrap_labels, test_set, test_labels, max_depth=3):
+    """
+    Evaluate bagged decision trees on the test set.
+
+    Parameters:
+        bootstrap_samples (numpy.ndarray): Array containing bootstrap samples.
+        bootstrap_labels (numpy.ndarray): Array containing labels for bootstrap samples.
+        test_set (numpy.ndarray): Array containing the test set.
+        test_labels (numpy.ndarray): Array containing labels for the test set.
+        max_depth (int): Maximum depth of individual decision trees.
+
+    Returns:
+        float: Overall accuracy.
+        numpy.ndarray: Class-wise accuracy.
+    """
+    num_trees = len(bootstrap_samples)
+    test_predictions = []
+
+    # Train decision trees on bootstrap samples and make predictions on test set
+    for i in range(num_trees):
+        tree = grow_decision_tree(bootstrap_samples[i], bootstrap_labels[i], max_depth)
+        test_predictions.append(classify_test_samples(tree, test_set))
+
+    # Perform majority voting to get final predictions
+    final_predictions = majority_voting(np.array(test_predictions))
+
+    # Calculate accuracy
+    class_accuracy, overall_accuracy = calculate_accuracy(test_labels, final_predictions)
+    return overall_accuracy, class_accuracy
+
+print()
+print("After Bagging")
+# Evaluate bagged decision trees
+overall_accuracy, class_accuracy = evaluate_bagged_decision_trees(bootstrap_samples, bootstrap_labels, x_test_filtered_vector_recon, y_test_filtered)
+print("Class-wise accuracy in %:", class_accuracy*100)
+print(f"Overall accuracy: {overall_accuracy*100}%")
