@@ -26,6 +26,7 @@ while True:
         
         aspect_ratio=bbox1[3]/bbox1[2]  
         
+        """
         if aspect_ratio>1:
             k=imgsize/bbox1[3]
             wcal =  math.ceil(k*bbox1[2])
@@ -39,7 +40,7 @@ while True:
             img3 = cv2.resize(img2, (imgsize,hcal))
             imgResizeShape=img3.shape
             hGap = math.ceil((imgsize-hcal)/2)
-            imgWhite[hGap:hcal+hGap,0:imgsize] = img3
+            #imgWhite[hGap:hcal+hGap,0:imgsize] = img3"""
         
         cv2.imshow("ImageCrop", img2)
         cv2.imshow("ImageWhite", imgWhite)

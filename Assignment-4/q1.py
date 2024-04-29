@@ -1,9 +1,97 @@
 import numpy as np
 import matplotlib.pyplot as plt
-import tree
+
+class DecisionStump:
+    def __init__(self, train_set, label_data, weights=None):
+        self.train_set = train_set
+        self.label_data = label_data
+        if weights is None:
+            self.weights = np.ones(len(label_data)) / len(label_data)
+        else:
+            self.weights = weights
+        self.split_value = None
+        self.alpha = None
+        self.index = None
+        
+    def find_best_split(self, feature, thresholds, total_sum_weights):
+    # Reshape the feature vector to ensure proper broadcasting
+        feature = feature.reshape(-1, 1)
+        
+        # Ensure thresholds is a numpy array
+        thresholds = np.array(thresholds)
+        
+        # Broadcast feature and thresholds to enable element-wise comparison
+        predictions = np.where(feature <= thresholds, 0, 1)
+        
+        # Initialize an array to store the L values
+        L_values = np.zeros_like(thresholds, dtype=float)
+        
+        # Loop over each threshold to calculate L
+        for i, threshold in enumerate(thresholds):
+            # Calculate predictions for the current threshold
+            errors = predictions[:, i] != self.label_data
+            
+            # Get the indices where there are no errors
+            indices = np.where(~errors)
+            
+            # Calculate the sum of weights for this threshold
+            sum_weights = np.sum(self.weights[indices])
+            
+            # Calculate L for this threshold
+            L = sum_weights / total_sum_weights
+            
+            # Store the L value
+            L_values[i] = L
+        
+        return L_values
+
+    def classify(self, feature, threshold):
+        return np.where(feature <= threshold, 0, 1)
+    
+    def train(self):
+        best_splits = []
+        """
+        Train the decision stump using the weighted data
+        """
+        for i in range(self.train_set.shape[1]):
+            feature = self.train_set[:, i]
+            thresholds = np.unique(feature)
+            thresholds.sort()
+            new_thresholds = np.array([(thresholds[i] + thresholds[i+1]) / 2 for i in range(len(thresholds)-1)])
+            new_thresholds = np.random.choice(thresholds, size=1000, replace=False)
+            total_sum_weights = np.sum(self.weights)
+            losses = self.find_best_split(feature, new_thresholds, total_sum_weights)
+            best_split = thresholds[np.argmin(losses)]
+            best_splits.append([best_split,np.min(losses)])
+        best_splits=np.array(best_splits)
+        j_values = best_splits[:, 1]
+        min_index = np.argmin(j_values)
+        self.split_value,L = best_splits[min_index]
+        self.index = min_index
+        #calculate alpha
+        self.alpha = 0.5 * np.log((1 - L) / L)
+        #new classification for updating the weights
+        predictions = np.where(self.train_set[:, min_index] <= self.split_value, 0, 1)
+        #update the weights
+        missclassifed_indices = np.where(predictions != self.label_data)
+        false_indices = missclassifed_indices[missclassifed_indices == False]
+        #update the weights
+        self.weights[false_indices] = self.weights[false_indices] * np.exp(self.alpha)
+
+    def min_loss(self, feature, threshold):
+        predictions = np.where(feature <= threshold, 0, 1)
+        loss = np.sum(self.weights * (predictions != self.label_data))
+        return loss
+
+    def get_weights(self):
+        return self.weights
+    
+    def predict(self, X):
+        feature = X[:, self.index]
+        return np.where(feature <= self.split_value, 0, 1)
 
 # Load the MNIST dataset
-mnist_data = np.load('mnist.npz')
+mnist_data = np.load(r'C:\Users\rijus\OneDrive\Desktop\Projects\SML\Assignment-4\mnist.npz')
 
 # Access the arrays within the npz file
 x_train = mnist_data['x_train']
@@ -42,11 +130,6 @@ y_val = np.concatenate((y_train_filtered[class_0_indices[:val_size]], y_train_fi
 x_train_filtered_vector = np.delete(x_train_filtered_vector, np.concatenate((class_0_indices[:val_size], class_1_indices[:val_size])), axis=0)
 y_train_filtered = np.delete(y_train_filtered, np.concatenate((class_0_indices[:val_size], class_1_indices[:val_size])))
 
-# Print the shapes of the train, validation, and test sets
-print("Train set shape:", x_train_filtered_vector.shape)
-print("Validation set shape:", x_val.shape)
-print("Test set shape:", x_test_filtered_vector.shape)
-
 #Train-set x_train_filtered_vector, y_train_filtered
 #Val-set x_val, y_val
 #Test-set x_test_filtered_vector, y_test_filtered
@@ -72,46 +155,45 @@ Y_train = Y_train.astype(np.float32)
 x_train_filtered_vector_recon = Y_train
 x_test_filtered_vector_recon = np.dot(x_test_filtered_vector - np.mean(x_test_filtered_vector), U)
 x_test_filtered_vector_recon = x_test_filtered_vector_recon.astype(np.float32)
-x_val = x_val @ U
+x_val = np.dot(x_val - np.mean(x_val), U)
 
 print(x_test_filtered_vector_recon.shape)
 print(x_train_filtered_vector_recon.shape)
 print(x_val.shape)
 
 def train_decision_stumps(X_train, y_train, X_val, y_val, n_stumps=300):
-    stumps = []
     accuracies = []
-
+    num_iteration = []
     n_samples= X_train.shape[0]
     weights = np.ones(n_samples) / n_samples
 
+    best_accuracy = 0
+    best_stump = None
+
     for i in range(n_stumps):
-        stump = tree.DecisionStump(X_train, y_train, weights)
+        stump = DecisionStump(X_train, y_train, weights)
         stump.train()
-        stumps.append(stump)
-
         predictions = stump.predict(X_val)
-        accuracy = np.mean(predictions == y_val)
+        mismatch_indices = np.where(predictions != y_val)[0]
+        accuracy = len(mismatch_indices) / len(y_val)
         accuracies.append(accuracy)
+        num_iteration.append(i + 1)
+        weights = stump.get_weights()
+        if accuracy > best_accuracy:
+            best_accuracy = accuracy
+            best_stump = stump
+    print("Training done")
+    return best_stump, accuracies, num_iteration
 
-        # Update weights for next iteration
-        misclassified = predictions != y_val
-        error_rate = np.sum(weights[misclassified]) / np.sum(weights)
-        alpha = 0.5 * np.log((1 - error_rate) / error_rate)
-        weights = np.where(misclassified, weights * np.exp(alpha), weights * np.exp(-alpha))
-        weights /= np.sum(weights)
+best_stump, accuracies, num_iteration = train_decision_stumps(x_train_filtered_vector_recon, y_train_filtered, x_val, y_val)
 
-    return np.array(accuracies)
+plt.plot(num_iteration, accuracies)
+plt.xlabel('Number of Stumps')
+plt.ylabel('Accuracy on Validation Set')
+plt.title('Accuracy vs. Number of Stumps')
+plt.show()
 
-accuracies = train_decision_stumps(x_train_filtered_vector_recon, y_train_filtered, x_val, y_val)
-
-def plot_array(array):
-    x_values = range(1, len(array) + 1)
-    plt.plot(x_values, array)
-    plt.xlabel('Index + 1')
-    plt.ylabel('Value')
-    plt.title('Plot of Array Values')
-    plt.grid(True)
-    plt.show()
-arr = [1, 2, 3, 4, 5]
-plot_array(arr)
+# Evaluate the best stump on the test set
+test_predictions = best_stump.predict(x_test_filtered_vector_recon)
+test_accuracy = np.mean(test_predictions == y_test_filtered)
+print("Test Accuracy:", test_accuracy)
